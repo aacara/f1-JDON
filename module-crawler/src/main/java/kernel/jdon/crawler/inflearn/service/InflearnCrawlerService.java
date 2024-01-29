@@ -30,6 +30,7 @@ public class InflearnCrawlerService implements CrawlerService {
 	private final CourseParserService courseParserService;
 	private final CourseStorageService courseStorageService;
 	private static final int MAX_COURSES_PER_KEYWORD = 3;
+	private static final int SLEEP_TIME = 2000;
 
 	@Transactional
 	@Override
@@ -47,14 +48,12 @@ public class InflearnCrawlerService implements CrawlerService {
 		InflearnCrawlerState state = new InflearnCrawlerState();
 
 		while (state.getSavedCourseCount() < MAX_COURSES_PER_KEYWORD && !state.isLastPage()) {
-			////
 			try {
-				Thread.sleep(2000);
+				Thread.sleep(SLEEP_TIME);
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
 				break;
 			}
-			////////
 			String currentUrl = createInflearnSearchUrl(skillKeyword, CourseSearchSort.SORT_POPULARITY, pageNum);
 			log.info("currentUrl: {}", currentUrl);
 
