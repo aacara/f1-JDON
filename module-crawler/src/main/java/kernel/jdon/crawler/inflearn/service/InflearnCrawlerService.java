@@ -30,7 +30,10 @@ public class InflearnCrawlerService implements CrawlerService {
 	private final CourseParserService courseParserService;
 	private final CourseStorageService courseStorageService;
 	private static final int MAX_COURSES_PER_KEYWORD = 3;
-	private static final int SLEEP_TIME = 2000;
+	private static final int INITIAL_SLEEP_TIME = 2000;
+	private static final int MAX_SLEEP_TIME = 10000;
+	private static final int INCREMENT_SLEEP_TIME = 1000;
+	private int dynamicSleepTime = INITIAL_SLEEP_TIME;
 
 	@Transactional
 	@Override
@@ -49,25 +52,47 @@ public class InflearnCrawlerService implements CrawlerService {
 
 		while (state.getSavedCourseCount() < MAX_COURSES_PER_KEYWORD && !state.isLastPage()) {
 			try {
-				Thread.sleep(SLEEP_TIME);
+				Thread.sleep(dynamicSleepTime);
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
 				break;
 			}
 			String currentUrl = createInflearnSearchUrl(skillKeyword, CourseSearchSort.SORT_POPULARITY, pageNum);
 			log.info("currentUrl: {}", currentUrl);
+			
+			boolean isSuccess = scrapeAndParsePage(currentUrl, skillKeyword, pageNum, state);
+			adjustDynamicSleepTime(isSuccess);
 
-			Elements scrapeCourseElements = courseScraperService.scrapeCourses(currentUrl);
-			int coursesCount = scrapeCourseElements.size();
-			state.checkIfLastPageBasedOnCourseCount(coursesCount);
-
-			parseAndCreateCourses(scrapeCourseElements, currentUrl, skillKeyword, pageNum, state);
-
-			if (state.getSavedCourseCount() < MAX_COURSES_PER_KEYWORD) {
+			if (isSuccess && state.getSavedCourseCount() < MAX_COURSES_PER_KEYWORD) {
 				pageNum++;
 			}
 		}
+		saveCourseInfo(skillKeyword, state);
+	}
 
+	private boolean scrapeAndParsePage(String currentUrl, String skillKeyword, int pageNum,
+		InflearnCrawlerState state) {
+		try {
+			Elements scrapeCourseElements = courseScraperService.scrapeCourses(currentUrl);
+			int coursesCount = scrapeCourseElements.size();
+			state.checkIfLastPageBasedOnCourseCount(coursesCount);
+			parseAndCreateCourses(scrapeCourseElements, currentUrl, skillKeyword, pageNum, state);
+			return true;
+		} catch (Exception e) {
+			log.error("페이지 처리 중 오류 발생: {}", currentUrl, e);
+			return false;
+		}
+	}
+
+	private void adjustDynamicSleepTime(boolean requestSuccess) {
+		if (requestSuccess) {
+			dynamicSleepTime = INITIAL_SLEEP_TIME;
+		} else {
+			dynamicSleepTime = Math.min(dynamicSleepTime + INCREMENT_SLEEP_TIME, MAX_SLEEP_TIME);
+		}
+	}
+
+	private void saveCourseInfo(String skillKeyword, InflearnCrawlerState state) {
 		if (!state.getNewCourses().isEmpty()) {
 			courseStorageService.createInflearnCourseAndInflearnJdSkill(skillKeyword, state.getNewCourses());
 			state.resetState();
