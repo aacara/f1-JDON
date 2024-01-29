@@ -4,6 +4,7 @@ import static kernel.jdon.util.StringUtil.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
@@ -30,10 +31,12 @@ public class InflearnCrawlerService implements CrawlerService {
 	private final CourseParserService courseParserService;
 	private final CourseStorageService courseStorageService;
 	private static final int MAX_COURSES_PER_KEYWORD = 3;
-	private static final int INITIAL_SLEEP_TIME = 2000;
+	private static final int MIN_INITIAL_SLEEP_TIME = 1000;
+	private static final int MAX_INITIAL_SLEEP_TIME = 3000;
 	private static final int MAX_SLEEP_TIME = 10000;
 	private static final int INCREMENT_SLEEP_TIME = 1000;
-	private int dynamicSleepTime = INITIAL_SLEEP_TIME;
+	private int dynamicSleepTime = MIN_INITIAL_SLEEP_TIME;
+	private final Random random = new Random();
 
 	@Transactional
 	@Override
@@ -59,7 +62,7 @@ public class InflearnCrawlerService implements CrawlerService {
 			}
 			String currentUrl = createInflearnSearchUrl(skillKeyword, CourseSearchSort.SORT_POPULARITY, pageNum);
 			log.info("currentUrl: {}", currentUrl);
-			
+
 			boolean isSuccess = scrapeAndParsePage(currentUrl, skillKeyword, pageNum, state);
 			adjustDynamicSleepTime(isSuccess);
 
@@ -86,7 +89,8 @@ public class InflearnCrawlerService implements CrawlerService {
 
 	private void adjustDynamicSleepTime(boolean requestSuccess) {
 		if (requestSuccess) {
-			dynamicSleepTime = INITIAL_SLEEP_TIME;
+			dynamicSleepTime =
+				MIN_INITIAL_SLEEP_TIME + random.nextInt(MAX_INITIAL_SLEEP_TIME - MIN_INITIAL_SLEEP_TIME + 1);
 		} else {
 			dynamicSleepTime = Math.min(dynamicSleepTime + INCREMENT_SLEEP_TIME, MAX_SLEEP_TIME);
 		}
