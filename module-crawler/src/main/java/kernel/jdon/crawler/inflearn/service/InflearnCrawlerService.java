@@ -51,13 +51,16 @@ public class InflearnCrawlerService implements CrawlerService {
 	}
 
 	private void processKeyword(String skillKeyword, int pageNum) {
+		log.info("처리중인 키워드: {}, 페이지: {}", skillKeyword, pageNum);
 		InflearnCrawlerState state = new InflearnCrawlerState();
 
 		while (state.getSavedCourseCount() < MAX_COURSES_PER_KEYWORD && !state.isLastPage()) {
 			try {
 				Thread.sleep(dynamicSleepTime);
+				log.debug("쓰레드 sleep {} ms", dynamicSleepTime);
 			} catch (InterruptedException e) {
 				Thread.currentThread().interrupt();
+				log.error("쓰레드가 중지", e);
 				break;
 			}
 			String currentUrl = createInflearnSearchUrl(skillKeyword, CourseSearchSort.SORT_POPULARITY, pageNum);
@@ -65,6 +68,10 @@ public class InflearnCrawlerService implements CrawlerService {
 
 			boolean isSuccess = scrapeAndParsePage(currentUrl, skillKeyword, pageNum, state);
 			adjustDynamicSleepTime(isSuccess);
+
+			if (!isSuccess) {
+				log.warn("페이지 스크래핑 및 파싱 실패: {}", currentUrl);
+			}
 
 			if (isSuccess && state.getSavedCourseCount() < MAX_COURSES_PER_KEYWORD) {
 				pageNum++;
@@ -127,6 +134,7 @@ public class InflearnCrawlerService implements CrawlerService {
 			if (parsedCourse != null) {
 				state.addNewCourse(parsedCourse);
 				state.incrementSavedCourseCount();
+				log.info("{} 키워드에 대해 저장된 강의 수: {}", skillKeyword, state.getSavedCourseCount());
 			}
 		}
 	}
