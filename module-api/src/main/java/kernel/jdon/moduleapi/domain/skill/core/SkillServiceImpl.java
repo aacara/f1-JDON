@@ -1,20 +1,16 @@
 package kernel.jdon.moduleapi.domain.skill.core;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 import kernel.jdon.moduleapi.domain.jobcategory.core.JobCategoryReader;
 import kernel.jdon.moduleapi.domain.skill.core.inflearnjd.InflearnJdSkillReader;
-import kernel.jdon.moduleapi.domain.skill.core.keyword.SkillKeywordReader;
+import kernel.jdon.moduleapi.domain.skill.core.keyword.SkillKeywordCache;
 import kernel.jdon.moduleapi.domain.skill.core.wantedjd.WantedJdSkillReader;
 import kernel.jdon.moduledomain.jobcategory.domain.JobCategory;
-import kernel.jdon.moduledomain.skill.domain.Skill;
 import kernel.jdon.moduledomain.skill.domain.SkillType;
-import kernel.jdon.moduledomain.skillkeyword.domain.SkillKeyword;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -25,7 +21,8 @@ public class SkillServiceImpl implements SkillService {
     private final WantedJdSkillReader wantedJdSkillReader;
     private final InflearnJdSkillReader inflearnJdSkillReader;
     private final JobCategoryReader jobCategoryReader;
-    private final SkillKeywordReader skillKeywordReader;
+    // private final SkillKeywordReader skillKeywordReader;
+    private final SkillKeywordCache skillKeywordCache;
 
     @Override
     public SkillInfo.FindHotSkillListResponse getHotSkillList() {
@@ -50,26 +47,59 @@ public class SkillServiceImpl implements SkillService {
         return new SkillInfo.FindJobCategorySkillListResponse(jobCategorySkillList);
     }
 
-    @Override
-    public SkillInfo.FindDataListBySkillResponse getDataListBySkill(String relatedkeyword, final Long memberId) {
-        final String searchKeyword = getKeyword(relatedkeyword);
+    // @Override
+    // public SkillInfo.FindDataListBySkillResponse getDataListBySkill(String relatedkeyword, final Long memberId) {
+    //     final String searchKeyword = getKeyword(relatedkeyword);
+    //
+    //     final List<SkillInfo.FindJd> findJdList = wantedJdSkillReader.findWantedJdListBySkill(
+    //         searchKeyword);
+    //     final List<SkillInfo.FindLecture> findLectureList = inflearnJdSkillReader.findInflearnLectureListBySkill(
+    //         searchKeyword, memberId);
+    //
+    //     return new SkillInfo.FindDataListBySkillResponse(searchKeyword, findLectureList, findJdList);
+    // }
 
-        final List<SkillInfo.FindJd> findJdList = wantedJdSkillReader.findWantedJdListBySkill(
-            searchKeyword);
+    // 시도 2
+   /* @Override
+    public SkillInfo.FindDataListBySkillResponse getDataListBySkill(String searchKeyword, final Long memberId) {
+        // final String searchKeyword = getKeyword(relatedkeyword);
+        Set<String> searchKeywords = skillKeywordCache.getAssociatedKeywords(searchKeyword);
+
+        final List<SkillInfo.FindJd> findJdList = searchKeywords.stream()
+            .flatMap(keyword -> wantedJdSkillReader.findWantedJdListBySkill(keyword).stream())
+            .toList();
+        final List<SkillInfo.FindLecture> findLectureList = searchKeywords.stream()
+            .flatMap(keyword -> inflearnJdSkillReader.findInflearnLectureListBySkill(keyword, memberId).stream())
+            .toList();
+
+        return new SkillInfo.FindDataListBySkillResponse(searchKeyword, findLectureList, findJdList);
+    }*/
+
+    @Override
+    public SkillInfo.FindDataListBySkillResponse getDataListBySkill(String searchKeyword, final Long memberId) {
+        // final String searchKeyword = getKeyword(relatedkeyword);
+        List<String> searchKeywordList = new java.util.ArrayList<>(
+            skillKeywordCache.getAssociatedKeywords(searchKeyword).stream().toList());
+
+        if (searchKeywordList.isEmpty()) {
+            searchKeywordList.add(getHotSkillKeyword());
+        }
+
+        final List<SkillInfo.FindJd> findJdList = wantedJdSkillReader.findWantedJdListBySkill(searchKeywordList);
         final List<SkillInfo.FindLecture> findLectureList = inflearnJdSkillReader.findInflearnLectureListBySkill(
-            searchKeyword, memberId);
+            searchKeywordList, memberId);
 
         return new SkillInfo.FindDataListBySkillResponse(searchKeyword, findLectureList, findJdList);
     }
 
-    private String getKeyword(final String searchKeyword) {
-        return Optional.ofNullable(searchKeyword)
-            .filter(StringUtils::hasText)
-            .map(skillKeywordReader::findSkillKeywordByRelatedKeywordIgnoreCase)
-            .map(SkillKeyword::getSkill)
-            .map(Skill::getKeyword)
-            .orElseGet(this::getHotSkillKeyword);
-    }
+    // private String getKeyword(final String searchKeyword) {
+    //     return Optional.ofNullable(searchKeyword)
+    //         .filter(StringUtils::hasText)
+    //         .map(skillKeywordReader::findSkillKeywordByRelatedKeywordIgnoreCase)
+    //         .map(SkillKeyword::getSkill)
+    //         .map(Skill::getKeyword)
+    //         .orElseGet(this::getHotSkillKeyword);
+    // }
 
     private String getHotSkillKeyword() {
         return skillReader.findHotSkillList().get(0).getKeyword();
