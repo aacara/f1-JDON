@@ -1,11 +1,9 @@
 package kernel.jdon.moduleapi.domain.skill.core;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 import kernel.jdon.moduleapi.domain.jobcategory.core.JobCategoryReader;
 import kernel.jdon.moduleapi.domain.skill.core.inflearnjd.InflearnJdSkillReader;
@@ -50,26 +48,48 @@ public class SkillServiceImpl implements SkillService {
         return new SkillInfo.FindJobCategorySkillListResponse(jobCategorySkillList);
     }
 
+    // @Override
+    // public SkillInfo.FindDataListBySkillResponse getDataListBySkill(String relatedkeyword, final Long memberId) {
+    //     final String searchKeyword = getKeyword(relatedkeyword);
+    //
+    //     final List<SkillInfo.FindJd> findJdList = wantedJdSkillReader.findWantedJdListBySkill(
+    //         searchKeyword);
+    //     final List<SkillInfo.FindLecture> findLectureList = inflearnJdSkillReader.findInflearnLectureListBySkill(
+    //         searchKeyword, memberId);
+    //
+    //     return new SkillInfo.FindDataListBySkillResponse(searchKeyword, findLectureList, findJdList);
+    // }
+
     @Override
-    public SkillInfo.FindDataListBySkillResponse getDataListBySkill(String relatedkeyword, final Long memberId) {
-        final String searchKeyword = getKeyword(relatedkeyword);
-
-        final List<SkillInfo.FindJd> findJdList = wantedJdSkillReader.findWantedJdListBySkill(
-            searchKeyword);
-        final List<SkillInfo.FindLecture> findLectureList = inflearnJdSkillReader.findInflearnLectureListBySkill(
-            searchKeyword, memberId);
-
-        return new SkillInfo.FindDataListBySkillResponse(searchKeyword, findLectureList, findJdList);
-    }
-
-    private String getKeyword(final String searchKeyword) {
-        return Optional.ofNullable(searchKeyword)
-            .filter(StringUtils::hasText)
-            .map(skillKeywordReader::findSkillKeywordByRelatedKeywordIgnoreCase)
+    public SkillInfo.FindDataListBySkillResponse getDataListBySkill(String relatedKeyword, final Long memberId) {
+        List<String> searchKeywords = skillKeywordReader.findSkillKeywordByRelatedKeywordIgnoreCase(relatedKeyword)
+            .stream()
             .map(SkillKeyword::getSkill)
             .map(Skill::getKeyword)
-            .orElseGet(this::getHotSkillKeyword);
+            .toList();
+
+        if (searchKeywords.isEmpty()) {
+            searchKeywords.add(getHotSkillKeyword());
+        }
+
+        final List<SkillInfo.FindJd> findJdList = searchKeywords.stream()
+            .flatMap(keyword -> wantedJdSkillReader.findWantedJdListBySkill(keyword).stream())
+            .toList();
+        final List<SkillInfo.FindLecture> findLectureList = searchKeywords.stream()
+            .flatMap(keyword -> inflearnJdSkillReader.findInflearnLectureListBySkill(keyword, memberId).stream())
+            .toList();
+
+        return new SkillInfo.FindDataListBySkillResponse(searchKeywords, findLectureList, findJdList);
     }
+
+    // private String getKeyword(final String searchKeyword) {
+    //     return Optional.ofNullable(searchKeyword)
+    //         .filter(StringUtils::hasText)
+    //         .map(skillKeywordReader::findSkillKeywordByRelatedKeywordIgnoreCase)
+    //         .map(SkillKeyword::getSkill)
+    //         .map(Skill::getKeyword)
+    //         .orElseGet(this::getHotSkillKeyword);
+    // }
 
     private String getHotSkillKeyword() {
         return skillReader.findHotSkillList().get(0).getKeyword();

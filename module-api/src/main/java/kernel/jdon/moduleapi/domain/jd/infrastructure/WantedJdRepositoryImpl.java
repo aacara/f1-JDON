@@ -5,6 +5,7 @@ import static kernel.jdon.moduledomain.wantedjd.domain.QWantedJd.*;
 import static kernel.jdon.moduledomain.wantedjdskill.domain.QWantedJdSkill.*;
 import static org.springframework.util.StringUtils.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -23,6 +24,7 @@ import kernel.jdon.moduleapi.domain.jd.core.JdSearchType;
 import kernel.jdon.moduleapi.domain.jd.core.JdSortType;
 import kernel.jdon.moduleapi.domain.jd.presentation.JdCondition;
 import kernel.jdon.moduleapi.domain.skill.core.keyword.SkillKeywordReader;
+import kernel.jdon.moduledomain.skillkeyword.domain.SkillKeyword;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
@@ -87,16 +89,38 @@ public class WantedJdRepositoryImpl implements CustomWantedJdRepository {
             : null;
     }
 
+    // private BooleanExpression wantedJdSkillContains(final String skill) {
+    //     final String keyword = skillKeywordReader.findSkillKeywordByRelatedKeywordIgnoreCase(skill)
+    //         .getSkill()
+    //         .getKeyword();
+    //
+    //     return hasText(skill) ?
+    //         wantedJd.id.in(JPAExpressions.select(wantedJdSkill.wantedJd.id)
+    //             .from(wantedJdSkill)
+    //             .where(wantedJdSkill.skill.keyword.eq(keyword)))
+    //         : null;
+    // }
     private BooleanExpression wantedJdSkillContains(final String skill) {
-        final String keyword = skillKeywordReader.findSkillKeywordByRelatedKeywordIgnoreCase(skill)
-            .getSkill()
-            .getKeyword();
 
-        return hasText(skill) ?
-            wantedJd.id.in(JPAExpressions.select(wantedJdSkill.wantedJd.id)
-                .from(wantedJdSkill)
-                .where(wantedJdSkill.skill.keyword.eq(keyword)))
-            : null;
+        List<SkillKeyword> skillKeywordList = skillKeywordReader.findSkillKeywordByRelatedKeywordIgnoreCase(skill);
+        List<String> keywords = new ArrayList<>();
+        for (SkillKeyword skillKeyword : skillKeywordList) {
+            keywords.add(skillKeyword.getSkill().getKeyword());
+        }
+
+        if (keywords.isEmpty()) {
+            return null;
+        }
+
+        BooleanExpression predicate = null;
+        for (String keyword : keywords) {
+            BooleanExpression currentPredicate = wantedJdSkill.skill.keyword.eq(keyword);
+            predicate = (predicate == null) ? currentPredicate : predicate.or(currentPredicate);
+        }
+
+        return wantedJd.id.in(JPAExpressions.select(wantedJdSkill.wantedJd.id)
+            .from(wantedJdSkill)
+            .where(predicate));
     }
 
     private OrderSpecifier createOrderSpecifier(final JdSortType sort) {

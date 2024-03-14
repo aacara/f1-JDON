@@ -52,7 +52,7 @@ public class SkillInfo {
     @Getter
     @Builder
     public static class FindDataListBySkillResponse {
-        private final String keyword;
+        private final List<String> keyword;
         private final List<FindLecture> lectureList;
         private final List<FindJd> jdList;
     }
